@@ -3,6 +3,7 @@ const fs=require("fs");
 const url=require('url')
 let count=0
 let visited=0
+let errcount=0
 
 
 const fetchtargets=()=>{
@@ -98,11 +99,16 @@ const sortContent=async(request)=>{
   await saveHeaders(request,"resources/headers")
 }
 
-
 const main =async () => {
   const list=fetchtargets()
   const browser = await puppeteer.launch();
   const page = await browser.newPage();
+
+  const checkAndExit=()=>{
+    if((visited/list.length)==1){setTimeout(()=>{browser.close();
+        console.log("----->",count,'Requests Intercepted '+'From',list.length,'Hosts')},5000)}
+    }
+
   page.on("requestfinished",async (request)=>{
         count++
       if(!await request.response().headers()['location']){
@@ -111,14 +117,16 @@ const main =async () => {
           if(request.url()==page.url()){await saveRoots(request)}
   }})
   for(let i of list){
-     await page.goto(i); 
      visited++
-     console.log(visited/list.length*100+"%"+'\t'+i)
+      
+     try {await page.goto(i)}
+     catch(err){if(err){errcount++;noteUri(i,".errors.txt");await checkAndExit();continue}}
+     
+     console.log(Math.floor(visited/list.length*100)+"%"+'   '+i)
      await page.screenshot({path:"./screenshots/"+i.split(':')[1].slice(2)+".png" })
-     if((visited/list.length)==1){setTimeout(()=>{browser.close();
-        console.log("----->",count,'Requests Intercepted '+'From',list.length,'Hosts')},5000)}
+     await checkAndExit()
     
- }
+     }
 
  
 }
