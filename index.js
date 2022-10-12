@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer');
 const fs=require("fs");
+const url=require('url')
 let count=0
 let visited=0
 
@@ -16,24 +17,33 @@ const fetchtargets=()=>{
     }
     return list
 }
-
-const saveHeaders=async(request)=>{
+const saveHeaders=async(request,location)=>{
     const line="--------------------------------------------------"
     const headers=await request.response().headers()
     let blacklist=['age','date','expires']
-    const url=request.url().split("?")[0].replace(/\//g,'\u2215')
-    await fs.appendFile("headers/"+url,line+"\n"+request.url()+"\n"+line+"\n",(error)=>{if(error){throw error}})
+    let iurl=new URL(request.url())
+    let path=btoa(iurl.pathname.replace(/\/$/,'')).replace(/=*$/,'')
+    let filename= (path)?iurl.host+path:iurl.host
+  await fs.appendFile(location+"/"+filename,line+"\n"+request.url()+"\n"+line+"\n",(error)=>{if(error){throw error}})
     for(x in headers){
         let match=false
         for(i of blacklist){
             if(i==x){match=true}
         }
-        if(!match){ await fs.appendFile("headers/"+url,x+":"+headers[x]+"\n",(error)=>{if(error){throw error}})
+        if(!match){ await fs.appendFile(location+"/"+filename,x+":"+headers[x]+"\n",(error)=>{if(error){throw error}})
 
         }
     }
 
 }
+
+
+const saveRoots=async(request) =>{
+    await saveResponse(request,"roots")
+    await saveHeaders(request,"headers") 
+
+}
+
 
 const noteUri=async (url,file)=>{
     await fs.appendFile(file,url+"\n",(error)=>
@@ -42,15 +52,18 @@ const noteUri=async (url,file)=>{
 
 const saveResponse=async (request,folder)=>{
     const line="--------------------------------------------------\n"
-    let filename=request.url().split("?")[0].replace(/\//g,'\u2215')
+    let iurl=new URL(request.url())
+    let path=btoa(iurl.pathname.replace(/\/$/,'')).replace(/=*$/,'')
+    let filename= (path)?iurl.host+path:iurl.host
     let response=await request.response().text()
     if(response==null || response==""){return null}
     //await fs.writeFile(folder+"/"+filename,line+request.url()+'\n'+line,(err)=>{if(err) throw err})
-    await fs.writeFile(folder+"/"+filename,line+request.url()+'\n'+line+response,(err)=>{if(err) throw err})
+    await fs.writeFile(folder+"/"+filename,line+request.url()+'\n'+line+response,(err)=>{if(err){if(err.code=="ENAMETOOLONG"){noteUri('<--Too Long-->  '+request.url(),"wierd.txt")} else throw err}})
 }
 
+
 const makefolders=async ()=>{
-    const folders=["html","other","headers","js","screenshots","noContentType"]
+    const folders=["resources","resources/html-files","resources/headers","roots","other","headers","js","screenshots","noContentType"]
     for(let i of folders){
     await fs.mkdir(i,(err)=>{
         if(err!=null){
@@ -70,7 +83,7 @@ const sortContent=async(request)=>{
  else if(flag.includes("xhtml+xml")){type="other",intresting=true}
  else if(flag.includes("json")){intresting=true;type="other"}
  else if(flag.includes("csv")){intresting=true;type="other"}
- else if(flag.includes("html")){type="html"}
+ else if(flag.includes("html")){type="resources/html-files"}
  else if(flag.includes("x-7z-compressed")){type="other",intresting=true}
  else if(flag.includes("zip")){type="other",intresting=true}
 
@@ -82,7 +95,7 @@ const sortContent=async(request)=>{
      await noteUri(request.url(),"intresting.txt")
  }
   await noteUri(request.url(),"all-urls.txt")
-  await saveHeaders(request)
+  await saveHeaders(request,"resources/headers")
 }
 
 
@@ -95,14 +108,15 @@ const main =async () => {
       if(!await request.response().headers()['location']){
           if(!request.url().match(/^https?\:\/\//)){ if(await request.url().match(/^data\:image/)){return null} else {noteUri(request.url()+"    ->NON HTTP","wierd.txt")}}
           else { await sortContent(request)}
+          if(request.url()==page.url()){await saveRoots(request)}
   }})
   for(let i of list){
      await page.goto(i); 
      visited++
-     console.log(visited +'/'+list.length+'\t'+i)
-     await page.screenshot({path:"./screenshots/"+i.replace(/\//g,'\u2215')+".png" })
+     console.log(visited/list.length*100+"%"+'\t'+i)
+     await page.screenshot({path:"./screenshots/"+i.split(':')[1].slice(2)+".png" })
      if((visited/list.length)==1){setTimeout(()=>{browser.close();
-        console.log("----->",count,'Requests Intercepted'+'From',list.length,'Hosts')},5000)}
+        console.log("----->",count,'Requests Intercepted '+'From',list.length,'Hosts')},5000)}
     
  }
 
