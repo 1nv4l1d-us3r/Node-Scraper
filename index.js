@@ -25,6 +25,7 @@ const saveHeaders=async(request,location)=>{
     let iurl=new URL(request.url())
     let path=btoa(iurl.pathname.replace(/\/$/,'')).replace(/=*$/,'')
     let filename= (path)?iurl.host+path:iurl.host
+    if(filename.length>100){filename=iurl.host+btoa(count)}
   await fs.appendFile(location+"/"+filename,line+"\n"+request.url()+"\n"+line+"\n",(error)=>{if(error){throw error}})
     for(x in headers){
         let match=false
@@ -52,12 +53,16 @@ const noteUri=async (url,file)=>{
 })}
 
 const saveResponse=async (request,folder)=>{
+    
     const line="--------------------------------------------------\n"
     let iurl=new URL(request.url())
     let path=btoa(iurl.pathname.replace(/\/$/,'')).replace(/=*$/,'')
     let filename= (path)?iurl.host+path:iurl.host
+    if(filename.length>100){filename=iurl.host+btoa(count)}
+    try{let response=await request.response().text()}
+    catch(err){if(err){return null}}
     let response=await request.response().text()
-    if(response==null || response==""){return null}
+    if(await response==null || await response==""){return null}
     //await fs.writeFile(folder+"/"+filename,line+request.url()+'\n'+line,(err)=>{if(err) throw err})
     await fs.writeFile(folder+"/"+filename,line+request.url()+'\n'+line+response,(err)=>{if(err){if(err.code=="ENAMETOOLONG"){noteUri('<--Too Long-->  '+request.url(),"wierd.txt")} else throw err}})
 }
@@ -101,8 +106,10 @@ const sortContent=async(request)=>{
 
 const main =async () => {
   const list=fetchtargets()
-  const browser = await puppeteer.launch();
-  const page = await browser.newPage();
+  const browser= await puppeteer.launch();
+  const incog = await browser.createIncognitoBrowserContext();
+
+  const page = await incog.newPage();
 
   const checkAndExit=()=>{
     if((visited/list.length)==1){setTimeout(()=>{browser.close();
@@ -110,8 +117,8 @@ const main =async () => {
     }
 
   page.on("requestfinished",async (request)=>{
-        count++
-      if(!await request.response().headers()['location']){
+     count++
+      if(!await request.response().headers()['location'] && await request.response().status()!=204){
           if(!request.url().match(/^https?\:\/\//)){ if(await request.url().match(/^data\:image/)){return null} else {noteUri(request.url()+"    ->NON HTTP","wierd.txt")}}
           else { await sortContent(request)}
           if(request.url()==page.url()){await saveRoots(request)}
