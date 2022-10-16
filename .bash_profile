@@ -14,3 +14,9 @@ alive=$(echo  "$new" | httprobe )
 echo "$alive" |sort -u resolved.txt - -o resolved.txt
 echo "$new"
 }
+scrape(){
+node  ~/node/index.js $1
+}
+showimages(){
+node ~/node/createImgPage.js
+}
