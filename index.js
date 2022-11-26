@@ -132,7 +132,8 @@ const main =async () => {
      catch(err){if(err){errcount++;noteUri(i,".errors.txt");await checkAndExit();continue}}
      
      console.log(Math.floor(visited/list.length*100)+"%"+'   '+i)
-     await page.screenshot({path:"./screenshots/"+i.replace(/https?:\/\//g,"")+".png" })
+     await page.screenshot({path:"./screenshots/"+i.replace(/https?:\/\//g,"")+".png" },{"waitUntil" : "networkidle0"})
+     await page.deleteCookie()
      await checkAndExit()
     
      }
